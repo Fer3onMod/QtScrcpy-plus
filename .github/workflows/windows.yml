@@ -1,7 +1,6 @@
 name: Windows
 # 触发规则详解 https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#on
-on:
-  workflow_dispatch:
+on: 
   push:
     paths:
       - 'QtScrcpy/**'
