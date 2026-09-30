@@ -1,5 +1,7 @@
 // #include <QDesktopWidget>
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QLabel>
 #include <QMessageBox>
@@ -135,8 +137,11 @@ void VideoForm::initUI()
 
     m_keymapOverlay = new KeymapOverlay(ui->keepRatioWidget);
     m_keymapOverlay->resize(ui->keepRatioWidget->size());
-    QString keymapPath = Config::getInstance().getKeyMapPath() + "/custom.json";
-    m_keymapOverlay->loadKeymap(keymapPath);
+    {
+        QString keymapDir = Config::getInstance().getKeyMapPath();
+        QDir().mkpath(keymapDir);
+        m_keymapOverlay->loadKeymap(keymapDir + "/custom.json");
+    }
     m_keymapOverlay->show();
 }
 
@@ -1009,11 +1014,13 @@ void VideoForm::toggleKeymapEditor()
     if (m_keymapOverlay) {
         bool editMode = !m_keymapOverlay->isEditMode();
         m_keymapOverlay->setEditMode(editMode);
-        
+
         if (!editMode) {
-            QString keymapPath = Config::getInstance().getKeyMapPath() + "/custom.json";
+            QString keymapDir = Config::getInstance().getKeyMapPath();
+            QDir().mkpath(keymapDir);
+            QString keymapPath = keymapDir + "/custom.json";
             m_keymapOverlay->saveKeymap(keymapPath);
-            
+
             auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
             if (device) {
                 QFile file(keymapPath);
@@ -1026,5 +1033,6 @@ void VideoForm::toggleKeymapEditor()
         }
     }
 }
+
 
 
