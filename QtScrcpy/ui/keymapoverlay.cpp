@@ -88,7 +88,13 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
         menu.addSeparator();
         QAction *addCustom = menu.addAction(tr("⌨  Custom Key…"));
 
-        QAction *result = menu.exec(event->globalPos());
+        QAction *result = menu.exec(
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            event->globalPosition().toPoint()
+#else
+            event->globalPos()
+#endif
+        );
 
         if (result == addFire) {
             auto *node = new ClickNodeWidget(this);
