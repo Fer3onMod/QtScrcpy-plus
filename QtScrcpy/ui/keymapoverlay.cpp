@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
+#include <QInputDialog>
 
 KeymapOverlay::KeymapOverlay(QWidget *parent)
     : QWidget(parent), m_editMode(false)
@@ -66,12 +67,18 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
 {
     if (m_editMode && event->button() == Qt::RightButton) {
         QMenu menu(this);
-        QAction *addTap = menu.addAction(tr("Add Tap Button"));
-        QAction *addWasd = menu.addAction(tr("Add WASD (Steering Wheel)"));
+        QAction *addTap = menu.addAction(tr("Add Tap Button (click)"));
+        QAction *addWasd = menu.addAction(tr("Add WASD Movement"));
         
         QAction *result = menu.exec(event->globalPos());
         if (result == addTap) {
+            bool ok;
+            QString key = QInputDialog::getText(this, tr("Assign Key"),
+                tr("Enter key name (e.g. Key_F, Key_1, LeftButton):"),
+                QLineEdit::Normal, QStringLiteral("Key_F"), &ok);
+            if (!ok || key.trimmed().isEmpty()) return;
             auto *node = new ClickNodeWidget(this);
+            node->setKeyName(key.trimmed());
             node->move(event->pos() - QPoint(node->width() / 2, node->height() / 2));
             node->show();
             m_nodes.append(node);
@@ -98,7 +105,16 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
 void KeymapOverlay::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if (m_editMode && event->button() == Qt::LeftButton) {
+        bool ok;
+        QString key = QInputDialog::getText(this, tr("Assign Key"),
+            tr("Enter key name (e.g. Key_F, Key_1, LeftButton):"),
+            QLineEdit::Normal, QStringLiteral("Key_F"), &ok);
+        if (!ok || key.trimmed().isEmpty()) {
+            QWidget::mouseDoubleClickEvent(event);
+            return;
+        }
         auto *node = new ClickNodeWidget(this);
+        node->setKeyName(key.trimmed());
         node->move(event->pos() - QPoint(node->width() / 2, node->height() / 2));
         node->show();
         m_nodes.append(node);
@@ -178,6 +194,11 @@ void KeymapOverlay::saveKeymap(const QString &jsonFilePath)
     QJsonObject smallEyes;
     smallEyes[QStringLiteral("type")] = QStringLiteral("KMT_CLICK");
     smallEyes[QStringLiteral("key")] = QStringLiteral("Key_Alt");
+    QJsonObject smallEyesPos;
+    smallEyesPos[QStringLiteral("x")] = 0.5;
+    smallEyesPos[QStringLiteral("y")] = 0.5;
+    smallEyes[QStringLiteral("pos")] = smallEyesPos;
+    smallEyes[QStringLiteral("switchMap")] = true;
     mouseMoveMap[QStringLiteral("smallEyes")] = smallEyes;
     
     root[QStringLiteral("mouseMoveMap")] = mouseMoveMap;
