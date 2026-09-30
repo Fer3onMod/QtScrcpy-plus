@@ -1,4 +1,4 @@
-// #include <QDesktopWidget>
+﻿// #include <QDesktopWidget>
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QLabel>
@@ -25,6 +25,7 @@
 #include "mousetap/mousetap.h"
 #include "ui_videoform.h"
 #include "videoform.h"
+#include "keymapoverlay.h"
 
 #ifdef Q_OS_MACOS
 #include "metalvideowindow.h"
@@ -87,31 +88,31 @@ void VideoForm::initUI()
         }
 
 #ifndef Q_OS_MACOS
-        // mac下去掉标题栏影响showfullscreen
-        // 去掉标题栏
+        // macä¸‹åŽ»æŽ‰æ ‡é¢˜æ å½±å“showfullscreen
+        // åŽ»æŽ‰æ ‡é¢˜æ 
         setWindowFlags(windowFlags() | Qt::FramelessWindowHint);
-        // 根据图片构造异形窗口
+        // æ ¹æ®å›¾ç‰‡æž„é€ å¼‚å½¢çª—å£
         setAttribute(Qt::WA_TranslucentBackground);
 #endif
     }
 
 #ifdef Q_OS_MACOS
-    // Apple Silicon: 使用 VideoToolbox + Metal 渲染
+    // Apple Silicon: ä½¿ç”¨ VideoToolbox + Metal æ¸²æŸ“
     if (m_decodeMode == 1) {
         m_metalWidget = new MetalVideoWidget();
         ui->keepRatioWidget->setWidget(m_metalWidget);
 
-        // FPS label 作为 Metal widget 的子控件
+        // FPS label ä½œä¸º Metal widget çš„å­æŽ§ä»¶
         m_fpsLabel = new QLabel(m_metalWidget);
     } else
 #endif
     {
-        // OpenGL 路径（原有逻辑）
+        // OpenGL è·¯å¾„ï¼ˆåŽŸæœ‰é€»è¾‘ï¼‰
         m_videoWidget = new QYUVOpenGLWidget();
         m_videoWidget->hide();
         ui->keepRatioWidget->setWidget(m_videoWidget);
 
-        // FPS label 作为 OpenGL widget 的子控件
+        // FPS label ä½œä¸º OpenGL widget çš„å­æŽ§ä»¶
         m_fpsLabel = new QLabel(m_videoWidget);
     }
 
@@ -131,6 +132,10 @@ void VideoForm::initUI()
         m_videoWidget->setMouseTracking(true);
     }
     ui->keepRatioWidget->setMouseTracking(true);
+
+    m_keymapOverlay = new KeymapOverlay(ui->keepRatioWidget);
+    m_keymapOverlay->resize(ui->keepRatioWidget->size());
+    m_keymapOverlay->show();
 }
 
 QRect VideoForm::getGrabCursorRect()
@@ -201,7 +206,7 @@ void VideoForm::showFPS(bool show)
 void VideoForm::updateRender(int width, int height, uint8_t* dataY, uint8_t* dataU, uint8_t* dataV, int linesizeY, int linesizeU, int linesizeV)
 {
     if (isMetalMode()) {
-        // Metal 路径不通过此方法渲染，使用 onFrameMetal
+        // Metal è·¯å¾„ä¸é€šè¿‡æ­¤æ–¹æ³•æ¸²æŸ“ï¼Œä½¿ç”¨ onFrameMetal
         return;
     }
 
@@ -252,7 +257,7 @@ void VideoForm::moveCenter()
         qWarning() << "getScreenRect is empty";
         return;
     }
-    // 窗口居中
+    // çª—å£å±…ä¸­
     move(screenRect.center() - QRect(0, 0, size().width(), size().height()).center());
 }
 
@@ -564,7 +569,7 @@ void VideoForm::onVideoSessionChanged(const QSize &size, bool clientResized)
 void VideoForm::switchFullScreen()
 {
     if (isFullScreen()) {
-        // 横屏全屏铺满全屏，恢复时，恢复保持宽高比
+        // æ¨ªå±å…¨å±é“ºæ»¡å…¨å±ï¼Œæ¢å¤æ—¶ï¼Œæ¢å¤ä¿æŒå®½é«˜æ¯”
         if (m_widthHeightRatio > 1.0f) {
             ui->keepRatioWidget->setWidthHeightRatio(m_widthHeightRatio);
         }
@@ -587,7 +592,7 @@ void VideoForm::switchFullScreen()
         ::SetThreadExecutionState(ES_CONTINUOUS);
 #endif
     } else {
-        // 横屏全屏铺满全屏，不保持宽高比
+        // æ¨ªå±å…¨å±é“ºæ»¡å…¨å±ï¼Œä¸ä¿æŒå®½é«˜æ¯”
         if (m_widthHeightRatio > 1.0f) {
             ui->keepRatioWidget->setWidthHeightRatio(-1.0f);
         }
@@ -596,7 +601,7 @@ void VideoForm::switchFullScreen()
         m_normalSize = size();
 
         m_fullScreenBeforePos = pos();
-        // 这种临时增加标题栏再全屏的方案会导致收不到mousemove事件，导致setmousetrack失效
+        // è¿™ç§ä¸´æ—¶å¢žåŠ æ ‡é¢˜æ å†å…¨å±çš„æ–¹æ¡ˆä¼šå¯¼è‡´æ”¶ä¸åˆ°mousemoveäº‹ä»¶ï¼Œå¯¼è‡´setmousetrackå¤±æ•ˆ
         // mac fullscreen must show title bar
 #ifdef Q_OS_MACOS
         //setWindowFlags(windowFlags() & ~Qt::FramelessWindowHint);
@@ -607,7 +612,7 @@ void VideoForm::switchFullScreen()
         }
         showFullScreen();
 
-        // 全屏状态禁止电脑休眠、息屏
+        // å…¨å±çŠ¶æ€ç¦æ­¢ç”µè„‘ä¼‘çœ ã€æ¯å±
 #ifdef Q_OS_WIN32
         ::SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
 #endif
@@ -908,6 +913,12 @@ void VideoForm::showEvent(QShowEvent *event)
 void VideoForm::resizeEvent(QResizeEvent *event)
 {
     Q_UNUSED(event)
+
+    // Resize keymap overlay to always match video area
+    if (m_keymapOverlay) {
+        m_keymapOverlay->resize(ui->keepRatioWidget->size());
+    }
+
     if (m_flexDisplay) {
         m_pendingDisplaySize = ui->keepRatioWidget->size();
         if (!m_pendingDisplaySize.isEmpty()) {
@@ -921,7 +932,7 @@ void VideoForm::resizeEvent(QResizeEvent *event)
         return;
     }
     QSize curSize = size();
-    // 限制VideoForm尺寸不能小于keepRatioWidget good size
+    // é™åˆ¶VideoFormå°ºå¯¸ä¸èƒ½å°äºŽkeepRatioWidget good size
     if (m_widthHeightRatio > 1.0f) {
         // hor
         if (curSize.height() <= goodSize.height()) {
@@ -988,5 +999,13 @@ void VideoForm::dropEvent(QDropEvent *event)
             continue;
         }
         emit device->pushFileRequest(file, Config::getInstance().getPushFilePath() + fileInfo.fileName());
+    }
+}
+
+void VideoForm::toggleKeymapEditor()
+{
+    if (m_keymapOverlay) {
+        bool editMode = !m_keymapOverlay->isEditMode();
+        m_keymapOverlay->setEditMode(editMode);
     }
 }

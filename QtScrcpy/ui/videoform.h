@@ -17,6 +17,8 @@ class FileHandler;
 class QYUVOpenGLWidget;
 class QLabel;
 class MetalVideoWidget;
+class KeymapOverlay;
+
 class VideoForm : public QWidget, public qsc::DeviceObserver
 {
     Q_OBJECT
@@ -35,6 +37,8 @@ public:
     void showFPS(bool show);
     void switchFullScreen();
     bool isHost();
+
+    void toggleKeymapEditor();
 
 private:
     void onFrame(int width, int height, uint8_t* dataY, uint8_t* dataU, uint8_t* dataV,
@@ -89,6 +93,8 @@ private:
     QPointer<MetalVideoWidget> m_metalWidget;
 
     QPointer<QLabel> m_fpsLabel;
+    
+    QPointer<KeymapOverlay> m_keymapOverlay;
 
     //inside member
     QSize m_frameSize;
