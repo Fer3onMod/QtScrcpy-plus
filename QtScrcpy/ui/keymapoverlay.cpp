@@ -3,6 +3,8 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QDebug>
+#include <QMenu>
+#include <QAction>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -57,11 +59,39 @@ void KeymapOverlay::paintEvent(QPaintEvent *event)
     painter.setFont(f);
     painter.drawText(rect().adjusted(8, 8, -8, -8),
                      Qt::AlignTop | Qt::AlignLeft,
-                     tr("Edit Mode: Double-click to add button | Right-click node to remove | Drag to move"));
+                     tr("Edit Mode: Double-click or Right-click to add nodes | Right-click node to remove | Drag to move"));
 }
 
 void KeymapOverlay::mousePressEvent(QMouseEvent *event)
 {
+    if (m_editMode && event->button() == Qt::RightButton) {
+        QMenu menu(this);
+        QAction *addTap = menu.addAction(tr("Add Tap Button"));
+        QAction *addWasd = menu.addAction(tr("Add WASD (Steering Wheel)"));
+        
+        QAction *result = menu.exec(event->globalPos());
+        if (result == addTap) {
+            auto *node = new ClickNodeWidget(this);
+            node->move(event->pos() - QPoint(node->width() / 2, node->height() / 2));
+            node->show();
+            m_nodes.append(node);
+            connect(node, &KeymapNodeWidget::removeRequested, this, [this, node]() {
+                m_nodes.removeAll(node);
+                node->deleteLater();
+            });
+        } else if (result == addWasd) {
+            auto *node = new SteerWheelNodeWidget(this);
+            node->move(event->pos() - QPoint(node->width() / 2, node->height() / 2));
+            node->show();
+            m_nodes.append(node);
+            connect(node, &KeymapNodeWidget::removeRequested, this, [this, node]() {
+                m_nodes.removeAll(node);
+                node->deleteLater();
+            });
+        }
+        event->accept();
+        return;
+    }
     QWidget::mousePressEvent(event);
 }
 
@@ -93,8 +123,8 @@ void KeymapOverlay::loadKeymap(const QString &jsonFilePath)
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     file.close();
 
-    if (!doc.isArray()) {
-        qWarning() << "KeymapOverlay: JSON root is not array";
+    if (!doc.isObject()) {
+        qWarning() << "KeymapOverlay: JSON root is not object";
         return;
     }
 
@@ -102,17 +132,19 @@ void KeymapOverlay::loadKeymap(const QString &jsonFilePath)
     qDeleteAll(m_nodes);
     m_nodes.clear();
 
-    const QJsonArray arr = doc.array();
+    QJsonObject root = doc.object();
+    QJsonArray arr = root["keyMapNodes"].toArray();
     for (const QJsonValue &val : arr) {
         if (!val.isObject()) continue;
         QJsonObject obj = val.toObject();
         QString type = obj.value("type").toString();
 
         KeymapNodeWidget *node = nullptr;
-        if (type == "click") {
+        if (type == "KMT_CLICK" || type == "click") {
             node = new ClickNodeWidget(this);
+        } else if (type == "KMT_STEER_WHEEL") {
+            node = new SteerWheelNodeWidget(this);
         }
-        // Add more types here as needed
 
         if (node) {
             node->fromJson(obj);
@@ -133,7 +165,25 @@ void KeymapOverlay::saveKeymap(const QString &jsonFilePath)
         arr.append(node->toJson());
     }
 
-    QJsonDocument doc(arr);
+    QJsonObject root;
+    root[QStringLiteral("switchKey")] = QStringLiteral("Key_QuoteLeft");
+    
+    QJsonObject mouseMoveMap;
+    QJsonObject startPos;
+    startPos[QStringLiteral("x")] = 0.5;
+    startPos[QStringLiteral("y")] = 0.5;
+    mouseMoveMap[QStringLiteral("startPos")] = startPos;
+    mouseMoveMap[QStringLiteral("speedRatio")] = 5;
+    
+    QJsonObject smallEyes;
+    smallEyes[QStringLiteral("type")] = QStringLiteral("KMT_CLICK");
+    smallEyes[QStringLiteral("key")] = QStringLiteral("Key_Alt");
+    mouseMoveMap[QStringLiteral("smallEyes")] = smallEyes;
+    
+    root[QStringLiteral("mouseMoveMap")] = mouseMoveMap;
+    root[QStringLiteral("keyMapNodes")] = arr;
+
+    QJsonDocument doc(root);
 
     QFile file(jsonFilePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {

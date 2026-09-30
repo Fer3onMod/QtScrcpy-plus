@@ -58,4 +58,20 @@ protected:
     void paintEvent(QPaintEvent *event) override;
 };
 
+// ---------------------------------------------------------------------------
+// SteerWheelNodeWidget — WASD mapping
+// ---------------------------------------------------------------------------
+class SteerWheelNodeWidget : public KeymapNodeWidget
+{
+    Q_OBJECT
+public:
+    explicit SteerWheelNodeWidget(QWidget *parent = nullptr);
+
+    QJsonObject toJson()  const override;
+    void fromJson(const QJsonObject &json) override;
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+};
+
 #endif // KEYMAPNODEWIDGET_H

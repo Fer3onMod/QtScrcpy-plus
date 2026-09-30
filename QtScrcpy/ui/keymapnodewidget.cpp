@@ -95,16 +95,19 @@ ClickNodeWidget::ClickNodeWidget(QWidget *parent)
 QJsonObject ClickNodeWidget::toJson() const
 {
     QJsonObject obj;
-    obj[QStringLiteral("type")] = QStringLiteral("click");
-    // Store position as fraction of parent size so it's resolution-independent
+    obj[QStringLiteral("type")] = QStringLiteral("KMT_CLICK");
+    
+    QJsonObject posObj;
     if (parentWidget()) {
-        obj[QStringLiteral("xRatio")] = static_cast<double>(pos().x() + width()  / 2) / parentWidget()->width();
-        obj[QStringLiteral("yRatio")] = static_cast<double>(pos().y() + height() / 2) / parentWidget()->height();
+        posObj[QStringLiteral("x")] = static_cast<double>(pos().x() + width()  / 2) / parentWidget()->width();
+        posObj[QStringLiteral("y")] = static_cast<double>(pos().y() + height() / 2) / parentWidget()->height();
     } else {
-        obj[QStringLiteral("xRatio")] = 0.5;
-        obj[QStringLiteral("yRatio")] = 0.5;
+        posObj[QStringLiteral("x")] = 0.5;
+        posObj[QStringLiteral("y")] = 0.5;
     }
+    obj[QStringLiteral("pos")] = posObj;
     obj[QStringLiteral("key")] = m_keyName;
+    obj[QStringLiteral("switchMap")] = false;
     return obj;
 }
 
@@ -114,12 +117,11 @@ void ClickNodeWidget::fromJson(const QJsonObject &json)
         m_keyName = json[QStringLiteral("key")].toString();
     }
     // Position will be resolved by the overlay after the widget has a parent and size
-    if (parentWidget() &&
-        json.contains(QStringLiteral("xRatio")) &&
-        json.contains(QStringLiteral("yRatio")))
+    if (parentWidget() && json.contains(QStringLiteral("pos")))
     {
-        double xR = json[QStringLiteral("xRatio")].toDouble();
-        double yR = json[QStringLiteral("yRatio")].toDouble();
+        QJsonObject posObj = json[QStringLiteral("pos")].toObject();
+        double xR = posObj[QStringLiteral("x")].toDouble();
+        double yR = posObj[QStringLiteral("y")].toDouble();
         int cx = static_cast<int>(xR * parentWidget()->width());
         int cy = static_cast<int>(yR * parentWidget()->height());
         move(cx - width() / 2, cy - height() / 2);
@@ -138,3 +140,84 @@ void ClickNodeWidget::paintEvent(QPaintEvent *event)
     p.setPen(Qt::NoPen);
     p.drawEllipse(rect().center(), 5, 5);
 }
+
+// ---------------------------------------------------------------------------
+// SteerWheelNodeWidget
+// ---------------------------------------------------------------------------
+
+SteerWheelNodeWidget::SteerWheelNodeWidget(QWidget *parent)
+    : KeymapNodeWidget(parent)
+{
+    setFixedSize(100, 100);
+    m_keyName = QStringLiteral("WASD");
+}
+
+QJsonObject SteerWheelNodeWidget::toJson() const
+{
+    QJsonObject obj;
+    obj[QStringLiteral("type")] = QStringLiteral("KMT_STEER_WHEEL");
+    
+    QJsonObject posObj;
+    if (parentWidget()) {
+        posObj[QStringLiteral("x")] = static_cast<double>(pos().x() + width()  / 2) / parentWidget()->width();
+        posObj[QStringLiteral("y")] = static_cast<double>(pos().y() + height() / 2) / parentWidget()->height();
+    } else {
+        posObj[QStringLiteral("x")] = 0.5;
+        posObj[QStringLiteral("y")] = 0.5;
+    }
+    obj[QStringLiteral("centerPos")] = posObj;
+    
+    obj[QStringLiteral("leftKey")] = QStringLiteral("Key_A");
+    obj[QStringLiteral("rightKey")] = QStringLiteral("Key_D");
+    obj[QStringLiteral("upKey")] = QStringLiteral("Key_W");
+    obj[QStringLiteral("downKey")] = QStringLiteral("Key_S");
+    
+    obj[QStringLiteral("leftOffset")] = 0.05;
+    obj[QStringLiteral("rightOffset")] = 0.05;
+    obj[QStringLiteral("upOffset")] = 0.05;
+    obj[QStringLiteral("downOffset")] = 0.05;
+
+    return obj;
+}
+
+void SteerWheelNodeWidget::fromJson(const QJsonObject &json)
+{
+    if (parentWidget() && json.contains(QStringLiteral("centerPos"))) {
+        QJsonObject posObj = json[QStringLiteral("centerPos")].toObject();
+        double xR = posObj[QStringLiteral("x")].toDouble();
+        double yR = posObj[QStringLiteral("y")].toDouble();
+        int cx = static_cast<int>(xR * parentWidget()->width());
+        int cy = static_cast<int>(yR * parentWidget()->height());
+        move(cx - width() / 2, cy - height() / 2);
+    }
+}
+
+void SteerWheelNodeWidget::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event);
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    
+    // Outer circle
+    p.setPen(QPen(QColor(0, 255, 100), 2, Qt::DashLine));
+    p.setBrush(QColor(0, 120, 50, 100));
+    p.drawEllipse(rect().adjusted(2, 2, -2, -2));
+    
+    // Crosshair
+    p.setPen(QPen(QColor(0, 255, 100), 1));
+    p.drawLine(width() / 2, 0, width() / 2, height());
+    p.drawLine(0, height() / 2, width(), height() / 2);
+    
+    // Labels
+    p.setPen(Qt::white);
+    QFont f = p.font();
+    f.setPointSize(10);
+    f.setBold(true);
+    p.setFont(f);
+    
+    p.drawText(rect().adjusted(0, 5, 0, 0), Qt::AlignTop | Qt::AlignHCenter, "W");
+    p.drawText(rect().adjusted(0, 0, 0, -5), Qt::AlignBottom | Qt::AlignHCenter, "S");
+    p.drawText(rect().adjusted(5, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, "A");
+    p.drawText(rect().adjusted(0, 0, -5, 0), Qt::AlignRight | Qt::AlignVCenter, "D");
+}
+
