@@ -15,6 +15,7 @@
 #include <QTimer>
 #include <QWindow>
 #include <QtWidgets/QHBoxLayout>
+#include <functional>
 
 #if defined(Q_OS_WIN32)
 #include <Windows.h>
@@ -270,198 +271,121 @@ void VideoForm::moveCenter()
 
 void VideoForm::installShortcut()
 {
-    QShortcut *shortcut = nullptr;
+    // Helper lambda: create shortcut and register it in m_shortcuts
+    auto addSc = [this](const QString &seq, bool autoRep, std::function<void()> fn) {
+        QShortcut *sc = new QShortcut(QKeySequence(seq), this);
+        sc->setAutoRepeat(autoRep);
+        connect(sc, &QShortcut::activated, this, fn);
+        m_shortcuts.append(sc);
+    };
 
     // switchFullScreen
-    shortcut = new QShortcut(QKeySequence("Ctrl+f"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+f", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        switchFullScreen();
+        if (device) switchFullScreen();
     });
 
     // resizeSquare
-    shortcut = new QShortcut(QKeySequence("Ctrl+g"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() { resizeSquare(); });
+    addSc("Ctrl+g", false, [this]() { resizeSquare(); });
 
     // removeBlackRect
-    shortcut = new QShortcut(QKeySequence("Ctrl+w"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() { removeBlackRect(); });
+    addSc("Ctrl+w", false, [this]() { removeBlackRect(); });
 
     // postGoHome
-    shortcut = new QShortcut(QKeySequence("Ctrl+h"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+h", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        device->postGoHome();
+        if (device) device->postGoHome();
     });
 
     // postGoBack
-    shortcut = new QShortcut(QKeySequence("Ctrl+b"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+b", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        device->postGoBack();
+        if (device) device->postGoBack();
     });
 
     // postAppSwitch
-    shortcut = new QShortcut(QKeySequence("Ctrl+s"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+s", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->postAppSwitch();
+        if (device) emit device->postAppSwitch();
     });
 
     // postGoMenu
-    shortcut = new QShortcut(QKeySequence("Ctrl+m"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+m", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        device->postGoMenu();
+        if (device) device->postGoMenu();
     });
 
     // postVolumeUp
-    shortcut = new QShortcut(QKeySequence("Ctrl+up"), this);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+up", true, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->postVolumeUp();
+        if (device) emit device->postVolumeUp();
     });
 
     // postVolumeDown
-    shortcut = new QShortcut(QKeySequence("Ctrl+down"), this);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+down", true, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->postVolumeDown();
+        if (device) emit device->postVolumeDown();
     });
 
     // postPower
-    shortcut = new QShortcut(QKeySequence("Ctrl+p"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+p", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->postPower();
+        if (device) emit device->postPower();
     });
 
-    shortcut = new QShortcut(QKeySequence("Ctrl+o"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    // setDisplayPower off
+    addSc("Ctrl+o", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->setDisplayPower(false);
+        if (device) emit device->setDisplayPower(false);
     });
 
     // expandNotificationPanel
-    shortcut = new QShortcut(QKeySequence("Ctrl+n"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+n", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->expandNotificationPanel();
+        if (device) emit device->expandNotificationPanel();
     });
 
-    shortcut = new QShortcut(QKeySequence("Ctrl+Alt+n"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+Alt+n", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (device) {
-            device->expandSettingsPanel();
-        }
+        if (device) device->expandSettingsPanel();
     });
 
-    shortcut = new QShortcut(QKeySequence("Ctrl+r"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+r", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (device) {
-            device->rotateDevice();
-        }
+        if (device) device->rotateDevice();
     });
 
     // collapsePanel
-    shortcut = new QShortcut(QKeySequence("Ctrl+Shift+n"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+Shift+n", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->collapsePanel();
+        if (device) emit device->collapsePanel();
     });
 
     // copy
-    shortcut = new QShortcut(QKeySequence("Ctrl+c"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+c", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->postCopy();
+        if (device) emit device->postCopy();
     });
 
     // cut
-    shortcut = new QShortcut(QKeySequence("Ctrl+x"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+x", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->postCut();
+        if (device) emit device->postCut();
     });
 
     // clipboardPaste
-    shortcut = new QShortcut(QKeySequence("Ctrl+v"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+v", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->setDeviceClipboard();
+        if (device) emit device->setDeviceClipboard();
     });
 
     // setDeviceClipboard
-    shortcut = new QShortcut(QKeySequence("Ctrl+Shift+v"), this);
-    shortcut->setAutoRepeat(false);
-    connect(shortcut, &QShortcut::activated, this, [this]() {
+    addSc("Ctrl+Shift+v", false, [this]() {
         auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (!device) {
-            return;
-        }
-        emit device->clipboardPaste();
+        if (device) emit device->clipboardPaste();
     });
 }
+
 
 QRect VideoForm::getScreenRect()
 {
@@ -1011,26 +935,37 @@ void VideoForm::dropEvent(QDropEvent *event)
 
 void VideoForm::toggleKeymapEditor()
 {
-    if (m_keymapOverlay) {
-        bool editMode = !m_keymapOverlay->isEditMode();
-        m_keymapOverlay->setEditMode(editMode);
+    if (!m_keymapOverlay)
+        return;
 
-        if (!editMode) {
-            QString keymapDir = Config::getInstance().getKeyMapPath();
-            QDir().mkpath(keymapDir);
-            QString keymapPath = keymapDir + "/custom.json";
-            m_keymapOverlay->saveKeymap(keymapPath);
+    bool editMode = !m_keymapOverlay->isEditMode();
+    m_keymapOverlay->setEditMode(editMode);
 
-            auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-            if (device) {
-                QFile file(keymapPath);
-                if (file.open(QIODevice::ReadOnly)) {
-                    QString script = QString::fromUtf8(file.readAll());
-                    device->updateScript(script);
-                    file.close();
-                }
+    if (!editMode) {
+        // Leaving game/edit mode — save keymap and push to device
+        QString keymapDir = Config::getInstance().getKeyMapPath();
+        QDir().mkpath(keymapDir);
+        QString keymapPath = keymapDir + "/custom.json";
+        m_keymapOverlay->saveKeymap(keymapPath);
+
+        auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+        if (device) {
+            QFile file(keymapPath);
+            if (file.open(QIODevice::ReadOnly)) {
+                QString script = QString::fromUtf8(file.readAll());
+                device->updateScript(script);
+                file.close();
             }
         }
+
+        // Re-enable all app shortcuts
+        for (QShortcut *sc : m_shortcuts)
+            sc->setEnabled(true);
+
+    } else {
+        // Entering game mode — disable app shortcuts so WASD reaches engine
+        for (QShortcut *sc : m_shortcuts)
+            sc->setEnabled(false);
     }
 }
 

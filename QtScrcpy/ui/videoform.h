@@ -1,7 +1,9 @@
 #ifndef VIDEOFORM_H
 #define VIDEOFORM_H
 
+#include <QList>
 #include <QPointer>
+#include <QShortcut>
 #include <QTimer>
 #include <QWidget>
 
@@ -113,6 +115,9 @@ private:
 
     //Whether to display the toolbar when connecting a device.
     bool show_toolbar = true;
+
+    // All app shortcuts — disabled while game/keymap mode is active
+    QList<QShortcut *> m_shortcuts;
 };
 
 #endif // VIDEOFORM_H

@@ -190,6 +190,8 @@ set(QC_UI_SOURCES
     ui/keymapoverlay.cpp
     ui/keymapnodewidget.h
     ui/keymapnodewidget.cpp
+    ui/keycapturedlg.h
+    ui/keycapturedlg.cpp
     render/qyuvopenglwidget.h
     render/qyuvopenglwidget.cpp
 )
