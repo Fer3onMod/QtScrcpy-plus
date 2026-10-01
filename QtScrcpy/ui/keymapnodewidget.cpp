@@ -282,3 +282,81 @@ void SteerWheelNodeWidget::paintEvent(QPaintEvent *event)
 
     paintCloseButton(p);
 }
+
+// ---------------------------------------------------------------------------
+// MouseMoveNodeWidget
+// ---------------------------------------------------------------------------
+
+MouseMoveNodeWidget::MouseMoveNodeWidget(QWidget *parent)
+    : KeymapNodeWidget(parent)
+{
+    setFixedSize(140, 100);
+    m_keyName = QStringLiteral("Camera\nLook");
+}
+
+QJsonObject MouseMoveNodeWidget::toJson() const
+{
+    QJsonObject obj;
+    // NOTE: Mouse move map doesn't have a typical type=KMT_MOUSE_MOVE at the root of its object in the json.
+    // It's saved directly as "mouseMoveMap": { ... }
+    
+    QJsonObject posObj;
+    if (parentWidget()) {
+        posObj[QStringLiteral("x")] = static_cast<double>(pos().x() + width()  / 2) / parentWidget()->width();
+        posObj[QStringLiteral("y")] = static_cast<double>(pos().y() + height() / 2) / parentWidget()->height();
+    } else {
+        posObj[QStringLiteral("x")] = 0.5;
+        posObj[QStringLiteral("y")] = 0.5;
+    }
+    obj[QStringLiteral("startPos")] = posObj;
+
+    QJsonObject speedObj;
+    speedObj[QStringLiteral("x")] = 3.0; // default speed X
+    speedObj[QStringLiteral("y")] = 3.0; // default speed Y
+    obj[QStringLiteral("speedRatio")] = speedObj;
+
+    // Small eyes key (Alt by default)
+    obj[QStringLiteral("smallEyes")] = QStringLiteral("Key_Alt");
+
+    return obj;
+}
+
+void MouseMoveNodeWidget::fromJson(const QJsonObject &json)
+{
+    // MouseMoveMap is usually nested under "mouseMoveMap" object, so this might be called on that object.
+    if (json.contains(QStringLiteral("startPos"))) {
+        QJsonObject posObj = json[QStringLiteral("startPos")].toObject();
+        double x = posObj[QStringLiteral("x")].toDouble(0.5);
+        double y = posObj[QStringLiteral("y")].toDouble(0.5);
+        
+        if (parentWidget()) {
+            move(x * parentWidget()->width() - width() / 2, y * parentWidget()->height() - height() / 2);
+        }
+    }
+    m_keyName = QStringLiteral("Camera\nLook");
+}
+
+void MouseMoveNodeWidget::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event);
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    // Semi-transparent blue background
+    p.setPen(QPen(QColor(100, 150, 255), 2));
+    p.setBrush(QColor(50, 100, 200, 100));
+    p.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 10, 10);
+
+    // Text
+    p.setPen(Qt::white);
+    QFont f = p.font();
+    f.setBold(true);
+    f.setPointSize(10);
+    p.setFont(f);
+
+    p.drawText(rect(), Qt::AlignCenter, m_keyName);
+
+    paintCloseButton(p);
+}
+ 
+ 

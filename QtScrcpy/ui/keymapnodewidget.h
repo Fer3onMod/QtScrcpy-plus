@@ -86,4 +86,20 @@ protected:
     void paintEvent(QPaintEvent *event) override;
 };
 
+// ---------------------------------------------------------------------------
+// MouseMoveNodeWidget — Camera Look / Mouse Move mapping
+// ---------------------------------------------------------------------------
+class MouseMoveNodeWidget : public KeymapNodeWidget
+{
+    Q_OBJECT
+public:
+    explicit MouseMoveNodeWidget(QWidget *parent = nullptr);
+
+    QJsonObject toJson()  const override;
+    void fromJson(const QJsonObject &json) override;
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+};
+
 #endif // KEYMAPNODEWIDGET_H

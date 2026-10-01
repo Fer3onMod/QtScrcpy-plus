@@ -85,6 +85,7 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
         QAction *addScope = menu.addAction(tr("🎯  Scope Button  (Right Click)"));
         menu.addSeparator();
         QAction *addWasd  = menu.addAction(tr("🕹  WASD Movement"));
+        QAction *addCamera = menu.addAction(tr("👀  Camera Look (Mouse Move)"));
         menu.addSeparator();
         QAction *addCustom = menu.addAction(tr("⌨  Custom Key…"));
 
@@ -108,6 +109,16 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
 
         } else if (result == addWasd) {
             auto *node = new SteerWheelNodeWidget(this);
+            addNodeAt(node, event->pos());
+
+        } else if (result == addCamera) {
+            // Ensure only one Camera Look node exists
+            for (auto *existingNode : m_nodes) {
+                if (qobject_cast<MouseMoveNodeWidget*>(existingNode)) {
+                    return;
+                }
+            }
+            auto *node = new MouseMoveNodeWidget(this);
             addNodeAt(node, event->pos());
 
         } else if (result == addCustom) {
@@ -189,39 +200,35 @@ void KeymapOverlay::loadKeymap(const QString &jsonFilePath)
             m_nodes.append(node);
         }
     }
+
+    // Load mouseMoveMap if exists
+    if (root.contains(QStringLiteral("mouseMoveMap"))) {
+        QJsonObject mouseMoveObj = root.value(QStringLiteral("mouseMoveMap")).toObject();
+        auto *node = new MouseMoveNodeWidget(this);
+        node->fromJson(mouseMoveObj);
+        node->setVisible(m_editMode);
+        connect(node, &KeymapNodeWidget::removeRequested, this, [this, node]() {
+            m_nodes.removeAll(node);
+            node->deleteLater();
+        });
+        m_nodes.append(node);
+    }
 }
 
 void KeymapOverlay::saveKeymap(const QString &jsonFilePath)
 {
+    QJsonObject root;
     QJsonArray arr;
     for (const auto *node : m_nodes) {
-        arr.append(node->toJson());
+        if (qobject_cast<const MouseMoveNodeWidget*>(node)) {
+            root[QStringLiteral("mouseMoveMap")] = node->toJson();
+        } else {
+            arr.append(node->toJson());
+        }
     }
 
     // Build a complete keymap document compatible with QtScrcpyCore
-    QJsonObject root;
     root[QStringLiteral("switchKey")] = QStringLiteral("Key_QuoteLeft");
-
-    // mouseMoveMap (mouse-look / camera aim)
-    QJsonObject mouseMoveMap;
-    QJsonObject startPos;
-    startPos[QStringLiteral("x")] = 0.5;
-    startPos[QStringLiteral("y")] = 0.5;
-    mouseMoveMap[QStringLiteral("startPos")]   = startPos;
-    mouseMoveMap[QStringLiteral("speedRatio")] = 5;
-
-    // smallEyes (Alt key toggles ADS / iron-sights)
-    QJsonObject smallEyes;
-    smallEyes[QStringLiteral("type")] = QStringLiteral("KMT_CLICK");
-    smallEyes[QStringLiteral("key")]  = QStringLiteral("Key_Alt");
-    QJsonObject smallEyesPos;
-    smallEyesPos[QStringLiteral("x")] = 0.5;
-    smallEyesPos[QStringLiteral("y")] = 0.5;
-    smallEyes[QStringLiteral("pos")]       = smallEyesPos;
-    smallEyes[QStringLiteral("switchMap")] = true;
-    mouseMoveMap[QStringLiteral("smallEyes")] = smallEyes;
-
-    root[QStringLiteral("mouseMoveMap")] = mouseMoveMap;
     root[QStringLiteral("keyMapNodes")]  = arr;
 
     QJsonDocument doc(root);
