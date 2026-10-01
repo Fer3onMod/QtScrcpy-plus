@@ -310,13 +310,20 @@ QJsonObject MouseMoveNodeWidget::toJson() const
     }
     obj[QStringLiteral("startPos")] = posObj;
 
-    QJsonObject speedObj;
-    speedObj[QStringLiteral("x")] = 3.0; // default speed X
-    speedObj[QStringLiteral("y")] = 3.0; // default speed Y
-    obj[QStringLiteral("speedRatio")] = speedObj;
+    // Use speedRatioX and speedRatioY as expected by KeyMap::loadKeyMap
+    obj[QStringLiteral("speedRatioX")] = 3.0;
+    obj[QStringLiteral("speedRatioY")] = 3.0;
 
     // Small eyes key (Alt by default)
-    obj[QStringLiteral("smallEyes")] = QStringLiteral("Key_Alt");
+    QJsonObject smallEyes;
+    smallEyes[QStringLiteral("type")] = QStringLiteral("KMT_CLICK");
+    smallEyes[QStringLiteral("key")]  = QStringLiteral("Key_Alt");
+    QJsonObject smallEyesPos;
+    smallEyesPos[QStringLiteral("x")] = 0.5;
+    smallEyesPos[QStringLiteral("y")] = 0.5;
+    smallEyes[QStringLiteral("pos")]       = smallEyesPos;
+    smallEyes[QStringLiteral("switchMap")] = true;
+    obj[QStringLiteral("smallEyes")] = smallEyes;
 
     return obj;
 }
