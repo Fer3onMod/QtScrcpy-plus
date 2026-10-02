@@ -76,6 +76,10 @@ Description of the unique attributes of different key mapping types:
 
 ## Visual Key Mapping Tool
 
+QtScrcpy also includes a built-in editor. Start a device session, click **Edit custom keymap** in the device toolbar, then right-click the video to add a fire button, scope button, WASD wheel, camera-look map, double-tap action, or custom key. Drag nodes to position them; double-click a node to change its key or settings. Leaving edit mode saves `custom.json` and applies it to the connected device. Camera-look settings include independent horizontal and vertical sensitivity.
+
+The editor preserves keymap actions it cannot display (including `KMT_DRAG` and `KMT_CLICK_MULTI`) and keeps their original order and JSON fields when saving. Use the JSON format below or an external visual editor to create or edit those action types.
+
 1. Just use [QuickAssistant](https://lrbnfell4p.feishu.cn/drive/folder/Hqckfxj5el1Wjpd9uezcX71lnBh)
 
 ![game](../screenshot/game.png)
@@ -91,4 +95,3 @@ You can use this tool to:
 - Import existing mappings for editing
 
 Try it online: [ScrcpyKeyMapper Web App](https://w4po.github.io/ScrcpyKeyMapper)
-

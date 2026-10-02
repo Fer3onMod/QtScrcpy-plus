@@ -10,13 +10,15 @@
 #include <QJsonObject>
 #include <QFile>
 #include <QInputDialog>
+#include <QJsonParseError>
+#include <QMessageBox>
+#include <QResizeEvent>
+#include <QSaveFile>
 
 KeymapOverlay::KeymapOverlay(QWidget *parent)
     : QWidget(parent), m_editMode(false)
 {
-    // Transparent, stays on top of video widget
     setAttribute(Qt::WA_TranslucentBackground);
-    // Don't consume mouse events when not editing
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
 }
 
@@ -30,12 +32,9 @@ void KeymapOverlay::setEditMode(bool edit)
 {
     m_editMode = edit;
     setAttribute(Qt::WA_TransparentForMouseEvents, !m_editMode);
-
-    // Show or hide all nodes
     for (auto *node : m_nodes) {
         node->setVisible(m_editMode);
     }
-
     update();
 }
 
@@ -45,15 +44,10 @@ void KeymapOverlay::paintEvent(QPaintEvent *event)
     if (!m_editMode) {
         return;
     }
-
     QPainter painter(this);
     painter.fillRect(rect(), QColor(0, 0, 0, 70));
-
-    // Green border
     painter.setPen(QPen(QColor(0, 230, 0), 2));
     painter.drawRect(rect().adjusted(1, 1, -1, -1));
-
-    // Instructions
     painter.setPen(QColor(255, 255, 255, 210));
     QFont f = painter.font();
     f.setPointSize(9);
@@ -63,14 +57,46 @@ void KeymapOverlay::paintEvent(QPaintEvent *event)
                      tr("Edit Mode  |  Right-click: add node  |  Double-click: custom key  |  [X] to remove  |  Drag to move"));
 }
 
-// Helper: wire up a node and add it at position pos
+void KeymapOverlay::resizeEvent(QResizeEvent *event)
+{
+    const QSize oldSize = event->oldSize();
+    const QSize newSize = event->size();
+    if (!oldSize.isEmpty() && !newSize.isEmpty()) {
+        for (auto *node : m_nodes) {
+            const QPoint oldCenter = node->geometry().center();
+            const double xRatio = static_cast<double>(oldCenter.x()) / oldSize.width();
+            const double yRatio = static_cast<double>(oldCenter.y()) / oldSize.height();
+            const int x = qRound(xRatio * newSize.width() - node->width() / 2.0);
+            const int y = qRound(yRatio * newSize.height() - node->height() / 2.0);
+            node->move(qBound(0, x, qMax(0, newSize.width() - node->width())),
+                       qBound(0, y, qMax(0, newSize.height() - node->height())));
+        }
+    }
+    QWidget::resizeEvent(event);
+}
+
 void KeymapOverlay::addNodeAt(KeymapNodeWidget *node, const QPoint &pos)
 {
-    node->move(pos - QPoint(node->width() / 2, node->height() / 2));
+    const QPoint topLeft = pos - QPoint(node->width() / 2, node->height() / 2);
+    node->move(qBound(0, topLeft.x(), qMax(0, width() - node->width())),
+               qBound(0, topLeft.y(), qMax(0, height() - node->height())));
     node->show();
+    registerNode(node);
+}
+
+void KeymapOverlay::registerNode(KeymapNodeWidget *node, const QJsonValue &preservedValue)
+{
     m_nodes.append(node);
+    if (!qobject_cast<MouseMoveNodeWidget *>(node)) {
+        m_nodeEntries.append(qMakePair(node, preservedValue));
+    }
     connect(node, &KeymapNodeWidget::removeRequested, this, [this, node]() {
         m_nodes.removeAll(node);
+        for (int i = m_nodeEntries.size() - 1; i >= 0; --i) {
+            if (m_nodeEntries.at(i).first == node) {
+                m_nodeEntries.removeAt(i);
+            }
+        }
         node->deleteLater();
     });
 }
@@ -79,8 +105,6 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
 {
     if (m_editMode && event->button() == Qt::RightButton) {
         QMenu menu(this);
-
-        // Preset options
         QAction *addFire  = menu.addAction(tr("🔥  Fire Button  (Left Click)"));
         QAction *addScope = menu.addAction(tr("🎯  Scope Button  (Right Click)"));
         menu.addSeparator();
@@ -88,7 +112,7 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
         QAction *addCamera = menu.addAction(tr("👀  Camera Look (Mouse Move)"));
         menu.addSeparator();
         QAction *addCustom = menu.addAction(tr("⌨  Custom Key…"));
-
+        QAction *addDoubleTap = menu.addAction(tr("Double Tap"));
         QAction *result = menu.exec(
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             event->globalPosition().toPoint()
@@ -96,31 +120,25 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
             event->globalPos()
 #endif
         );
-
         if (result == addFire) {
             auto *node = new ClickNodeWidget(this);
             node->setKeyName(QStringLiteral("LeftButton"));
             addNodeAt(node, event->pos());
-
         } else if (result == addScope) {
             auto *node = new ClickNodeWidget(this);
             node->setKeyName(QStringLiteral("RightButton"));
             addNodeAt(node, event->pos());
-
         } else if (result == addWasd) {
             auto *node = new SteerWheelNodeWidget(this);
             addNodeAt(node, event->pos());
-
         } else if (result == addCamera) {
-            // Ensure only one Camera Look node exists
             for (auto *existingNode : m_nodes) {
-                if (qobject_cast<MouseMoveNodeWidget*>(existingNode)) {
+                if (qobject_cast<MouseMoveNodeWidget *>(existingNode)) {
                     return;
                 }
             }
             auto *node = new MouseMoveNodeWidget(this);
             addNodeAt(node, event->pos());
-
         } else if (result == addCustom) {
             bool ok;
             QString key = QInputDialog::getText(this, tr("Custom Key"),
@@ -131,8 +149,18 @@ void KeymapOverlay::mousePressEvent(QMouseEvent *event)
                 node->setKeyName(key.trimmed());
                 addNodeAt(node, event->pos());
             }
+        } else if (result == addDoubleTap) {
+            bool ok;
+            QString key = QInputDialog::getText(this, tr("Double Tap Key"),
+                tr("Qt key name (e.g.  Key_Q,  Key_E):"),
+                QLineEdit::Normal, QStringLiteral("Key_Q"), &ok);
+            if (ok && !key.trimmed().isEmpty()) {
+                auto *node = new ClickNodeWidget(this);
+                node->setActionType(QStringLiteral("KMT_CLICK_TWICE"));
+                node->setKeyName(key.trimmed());
+                addNodeAt(node, event->pos());
+            }
         }
-
         event->accept();
         return;
     }
@@ -159,85 +187,105 @@ void KeymapOverlay::loadKeymap(const QString &jsonFilePath)
 {
     QFile file(jsonFilePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        // Silently skip — file may not exist yet on first run
+        if (QFile::exists(jsonFilePath)) {
+            qWarning() << "KeymapOverlay: cannot open keymap:" << jsonFilePath << file.errorString();
+        }
         return;
     }
-
-    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
     file.close();
-
-    if (!doc.isObject()) {
-        qWarning() << "KeymapOverlay: JSON root is not an object:" << jsonFilePath;
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        qWarning() << "KeymapOverlay: invalid JSON keymap:" << jsonFilePath
+                   << parseError.errorString() << "at offset" << parseError.offset;
         return;
     }
-
-    // Clear existing nodes
+    const QJsonObject parsedRoot = doc.object();
+    if (parsedRoot.contains(QStringLiteral("keyMapNodes"))
+        && !parsedRoot.value(QStringLiteral("keyMapNodes")).isArray()) {
+        qWarning() << "KeymapOverlay: keyMapNodes is not an array:" << jsonFilePath;
+        return;
+    }
+    m_document = parsedRoot;
+    m_nodeEntries.clear();
+    m_loadedMouseMoveMap = false;
     qDeleteAll(m_nodes);
     m_nodes.clear();
-
-    QJsonObject root = doc.object();
+    QJsonObject root = m_document;
     QJsonArray arr = root[QStringLiteral("keyMapNodes")].toArray();
-
     for (const QJsonValue &val : arr) {
-        if (!val.isObject()) continue;
+        if (!val.isObject()) {
+            m_nodeEntries.append(qMakePair(static_cast<KeymapNodeWidget *>(nullptr), val));
+            continue;
+        }
         QJsonObject obj = val.toObject();
         QString type = obj.value(QStringLiteral("type")).toString();
-
         KeymapNodeWidget *node = nullptr;
-        if (type == QStringLiteral("KMT_CLICK") || type == QStringLiteral("click")) {
+        if (type == QStringLiteral("KMT_CLICK") || type == QStringLiteral("KMT_CLICK_TWICE")
+            || type == QStringLiteral("click")) {
             node = new ClickNodeWidget(this);
         } else if (type == QStringLiteral("KMT_STEER_WHEEL")) {
             node = new SteerWheelNodeWidget(this);
         }
-
-        if (node) {
-            node->fromJson(obj);
-            node->setVisible(m_editMode);
-            connect(node, &KeymapNodeWidget::removeRequested, this, [this, node]() {
-                m_nodes.removeAll(node);
-                node->deleteLater();
-            });
-            m_nodes.append(node);
+        if (!node) {
+            m_nodeEntries.append(qMakePair(static_cast<KeymapNodeWidget *>(nullptr), val));
+            continue;
         }
+        node->fromJson(obj);
+        node->setVisible(m_editMode);
+        registerNode(node);
     }
-
-    // Load mouseMoveMap if exists
-    if (root.contains(QStringLiteral("mouseMoveMap"))) {
+    if (root.value(QStringLiteral("mouseMoveMap")).isObject()) {
+        m_loadedMouseMoveMap = true;
         QJsonObject mouseMoveObj = root.value(QStringLiteral("mouseMoveMap")).toObject();
         auto *node = new MouseMoveNodeWidget(this);
         node->fromJson(mouseMoveObj);
         node->setVisible(m_editMode);
-        connect(node, &KeymapNodeWidget::removeRequested, this, [this, node]() {
-            m_nodes.removeAll(node);
-            node->deleteLater();
-        });
-        m_nodes.append(node);
+        registerNode(node);
     }
 }
 
-void KeymapOverlay::saveKeymap(const QString &jsonFilePath)
+bool KeymapOverlay::saveKeymap(const QString &jsonFilePath)
 {
-    QJsonObject root;
+    QJsonObject root = m_document;
     QJsonArray arr;
+    bool hasMouseMoveMap = false;
+    if (m_loadedMouseMoveMap) {
+        root.remove(QStringLiteral("mouseMoveMap"));
+    }
     for (const auto *node : m_nodes) {
-        if (qobject_cast<const MouseMoveNodeWidget*>(node)) {
-            root[QStringLiteral("mouseMoveMap")] = node->toJson();
-        } else {
-            arr.append(node->toJson());
+        if (const auto *mouseMoveNode = qobject_cast<const MouseMoveNodeWidget *>(node)) {
+            root[QStringLiteral("mouseMoveMap")] = mouseMoveNode->toJson();
+            hasMouseMoveMap = true;
         }
     }
-
-    // Build a complete keymap document compatible with QtScrcpyCore
-    root[QStringLiteral("switchKey")] = QStringLiteral("Key_QuoteLeft");
-    root[QStringLiteral("keyMapNodes")]  = arr;
-
-    QJsonDocument doc(root);
-
-    QFile file(jsonFilePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        qWarning() << "KeymapOverlay: Cannot write keymap to:" << jsonFilePath;
-        return;
+    if (m_loadedMouseMoveMap && !hasMouseMoveMap) {
+        root.remove(QStringLiteral("mouseMoveMap"));
     }
-    file.write(doc.toJson(QJsonDocument::Indented));
-    file.close();
+    for (const auto &entry : m_nodeEntries) {
+        arr.append(entry.first ? entry.first->toJson() : entry.second);
+    }
+    if (!root.contains(QStringLiteral("switchKey"))) {
+        root[QStringLiteral("switchKey")] = QStringLiteral("Key_QuoteLeft");
+    }
+    root[QStringLiteral("keyMapNodes")] = arr;
+    QJsonDocument doc(root);
+    QSaveFile file(jsonFilePath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        qWarning() << "KeymapOverlay: cannot write keymap to:" << jsonFilePath << file.errorString();
+        return false;
+    }
+    const QByteArray data = doc.toJson(QJsonDocument::Indented);
+    if (file.write(data) != data.size()) {
+        qWarning() << "KeymapOverlay: incomplete keymap write to:" << jsonFilePath << file.errorString();
+        file.cancelWriting();
+        return false;
+    }
+    if (!file.commit()) {
+        qWarning() << "KeymapOverlay: cannot commit keymap to:" << jsonFilePath << file.errorString();
+        return false;
+    }
+    m_document = root;
+    m_loadedMouseMoveMap = hasMouseMoveMap;
+    return true;
 }

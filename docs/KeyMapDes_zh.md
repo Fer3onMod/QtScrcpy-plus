@@ -75,6 +75,11 @@
     - downOffset 按下下方向键后模拟拖动到相对centerPos位置水平偏下downOffset处
     
 ## 可视化按键映射工具
+
+QtScrcpy 还内置了按键映射编辑器。连接设备并打开设备工具栏，点击“编辑自定义按键映射”，然后在视频画面上单击右键添加开火、瞄准、方向盘、视角移动、双击或自定义按键。拖动节点可调整位置，双击节点可修改按键或设置。退出编辑模式时会保存 `custom.json` 并应用到当前连接的设备。视角移动设置支持分别调整水平和垂直灵敏度。
+
+编辑器会保留无法可视化编辑的映射（包括 `KMT_DRAG` 和 `KMT_CLICK_MULTI`），保存时保留这些映射原有的顺序和 JSON 字段。创建或修改这两类映射，请使用下方的 JSON 格式说明或外部可视化编辑器。
+
 1. 直接使用[QuickAssistant](https://lrbnfell4p.feishu.cn/drive/folder/Hqckfxj5el1Wjpd9uezcX71lnBh)
 
 ![game](../screenshot/game.png)

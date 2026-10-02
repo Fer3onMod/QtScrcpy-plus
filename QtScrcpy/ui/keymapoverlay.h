@@ -6,8 +6,10 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QPair>
 
 class KeymapNodeWidget;
+class QResizeEvent;
 
 /**
  * @brief Transparent overlay that displays keymap nodes over the video widget.
@@ -29,21 +31,26 @@ public:
     ~KeymapOverlay();
 
     void loadKeymap(const QString &jsonFilePath);
-    void saveKeymap(const QString &jsonFilePath);
+    bool saveKeymap(const QString &jsonFilePath);
 
     void setEditMode(bool edit);
     bool isEditMode() const { return m_editMode; }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
 
 private:
     void addNodeAt(KeymapNodeWidget *node, const QPoint &pos);
+    void registerNode(KeymapNodeWidget *node, const QJsonValue &preservedValue = QJsonValue());
 
     bool m_editMode = false;
     QList<KeymapNodeWidget *> m_nodes;
+    QList<QPair<KeymapNodeWidget *, QJsonValue>> m_nodeEntries;
+    QJsonObject m_document;
+    bool m_loadedMouseMoveMap = false;
 };
 
 #endif // KEYMAPOVERLAY_H
