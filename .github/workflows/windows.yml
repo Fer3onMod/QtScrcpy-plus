@@ -1,18 +1,22 @@
-﻿name: Windows
+name: Windows
 
 on:
   push:
     paths:
       - 'QtScrcpy/**'
-      - '!QtScrcpy/res/**'
+      - 'CMakeLists.txt'
+      - '.gitmodules'
       - '.github/workflows/windows.yml'
-      - 'ci/win**'
+      - 'ci/generate-version.py'
+      - 'ci/win/**'
   pull_request:
     paths:
       - 'QtScrcpy/**'
-      - '!QtScrcpy/res/**'
+      - 'CMakeLists.txt'
+      - '.gitmodules'
       - '.github/workflows/windows.yml'
-      - 'ci/win**'
+      - 'ci/generate-version.py'
+      - 'ci/win/**'
 
 jobs:
   build:
@@ -59,7 +63,6 @@ jobs:
           target: desktop
           arch: ${{ matrix.qt-arch }}
           dir: ${{ env.qt-install-path }}
-          cached: ${{ steps.cache-qt.outputs.cache-hit }}
 
       - name: Build MSVC
         shell: cmd

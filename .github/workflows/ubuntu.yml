@@ -1,16 +1,20 @@
-﻿name: Ubuntu
+name: Ubuntu
 on:
   push:
     paths:
       - 'QtScrcpy/**'
-      - '!QtScrcpy/res/**'
+      - 'CMakeLists.txt'
+      - '.gitmodules'
       - '.github/workflows/ubuntu.yml'
+      - 'ci/generate-version.py'
       - 'ci/linux/**'
   pull_request:
     paths:
       - 'QtScrcpy/**'
-      - '!QtScrcpy/res/**'
+      - 'CMakeLists.txt'
+      - '.gitmodules'
       - '.github/workflows/ubuntu.yml'
+      - 'ci/generate-version.py'
       - 'ci/linux/**'
 
 jobs:
@@ -102,7 +106,6 @@ jobs:
         uses: jurplel/install-qt-action@v4.1.1
         with:
           version: ${{ matrix.qt-ver }}
-          cache: ${{ steps.cache-qt.outputs.cache-hit }}
           setup-python: false
 
       - name: Build Release

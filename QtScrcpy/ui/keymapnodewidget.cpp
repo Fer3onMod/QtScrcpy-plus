@@ -9,9 +9,41 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QDoubleSpinBox>
 
 static const int CLOSE_BTN_SIZE   = 18;
 static const int CLOSE_BTN_MARGIN = 3;
+
+static QJsonObject normalizedCenter(const QWidget *widget)
+{
+    QJsonObject position;
+    const QWidget *parent = widget->parentWidget();
+    if (parent && !parent->size().isEmpty()) {
+        position[QStringLiteral("x")] =
+            static_cast<double>(widget->geometry().center().x()) / parent->width();
+        position[QStringLiteral("y")] =
+            static_cast<double>(widget->geometry().center().y()) / parent->height();
+    } else {
+        position[QStringLiteral("x")] = 0.5;
+        position[QStringLiteral("y")] = 0.5;
+    }
+    return position;
+}
+
+static void moveToNormalizedCenter(QWidget *widget, const QJsonObject &position)
+{
+    QWidget *parent = widget->parentWidget();
+    if (!parent || parent->size().isEmpty()) {
+        return;
+    }
+
+    const double xRatio = qBound(0.0, position.value(QStringLiteral("x")).toDouble(0.5), 1.0);
+    const double yRatio = qBound(0.0, position.value(QStringLiteral("y")).toDouble(0.5), 1.0);
+    const int x = qRound(xRatio * parent->width() - widget->width() / 2.0);
+    const int y = qRound(yRatio * parent->height() - widget->height() / 2.0);
+    widget->move(qBound(0, x, qMax(0, parent->width() - widget->width())),
+                 qBound(0, y, qMax(0, parent->height() - widget->height())));
+}
 
 // ===========================================================================
 // KeymapNodeWidget (base)
@@ -87,8 +119,8 @@ void KeymapNodeWidget::mouseMoveEvent(QMouseEvent *event)
     if (m_isDragging && (event->buttons() & Qt::LeftButton)) {
         QPoint newPos = pos() + (event->pos() - m_dragStartPosition);
         if (parentWidget()) {
-            int maxX = parentWidget()->width()  - width();
-            int maxY = parentWidget()->height() - height();
+            int maxX = qMax(0, parentWidget()->width() - width());
+            int maxY = qMax(0, parentWidget()->height() - height());
             newPos.setX(qBound(0, newPos.x(), maxX));
             newPos.setY(qBound(0, newPos.y(), maxY));
         }
@@ -146,37 +178,35 @@ ClickNodeWidget::ClickNodeWidget(QWidget *parent)
     m_keyName = QStringLiteral("Key_F");
 }
 
+void ClickNodeWidget::setActionType(const QString &type)
+{
+    m_originalJson[QStringLiteral("type")] = type;
+    update();
+}
+
 QJsonObject ClickNodeWidget::toJson() const
 {
-    QJsonObject obj;
-    obj[QStringLiteral("type")] = QStringLiteral("KMT_CLICK");
-
-    QJsonObject posObj;
-    if (parentWidget()) {
-        posObj[QStringLiteral("x")] = static_cast<double>(pos().x() + width()  / 2) / parentWidget()->width();
-        posObj[QStringLiteral("y")] = static_cast<double>(pos().y() + height() / 2) / parentWidget()->height();
-    } else {
-        posObj[QStringLiteral("x")] = 0.5;
-        posObj[QStringLiteral("y")] = 0.5;
+    QJsonObject obj = m_originalJson;
+    if (!obj.contains(QStringLiteral("type"))) {
+        obj[QStringLiteral("type")] = QStringLiteral("KMT_CLICK");
     }
-    obj[QStringLiteral("pos")]       = posObj;
+
+    obj[QStringLiteral("pos")]       = normalizedCenter(this);
     obj[QStringLiteral("key")]       = m_keyName;
-    obj[QStringLiteral("switchMap")] = false;
+    if (!obj.contains(QStringLiteral("switchMap"))) {
+        obj[QStringLiteral("switchMap")] = false;
+    }
     return obj;
 }
 
 void ClickNodeWidget::fromJson(const QJsonObject &json)
 {
+    m_originalJson = json;
     if (json.contains(QStringLiteral("key"))) {
         m_keyName = json[QStringLiteral("key")].toString();
     }
-    if (parentWidget() && json.contains(QStringLiteral("pos"))) {
-        QJsonObject posObj = json[QStringLiteral("pos")].toObject();
-        double xR = posObj[QStringLiteral("x")].toDouble();
-        double yR = posObj[QStringLiteral("y")].toDouble();
-        int cx = static_cast<int>(xR * parentWidget()->width());
-        int cy = static_cast<int>(yR * parentWidget()->height());
-        move(cx - width() / 2, cy - height() / 2);
+    if (json.value(QStringLiteral("pos")).isObject()) {
+        moveToNormalizedCenter(this, json.value(QStringLiteral("pos")).toObject());
     }
 }
 
@@ -190,7 +220,10 @@ void ClickNodeWidget::paintEvent(QPaintEvent *event)
     QColor fillColor(0, 80, 180, 160);
     QString display = m_keyName;
 
-    if (m_keyName == QStringLiteral("LeftButton")) {
+    if (m_originalJson.value(QStringLiteral("type")).toString() == QStringLiteral("KMT_CLICK_TWICE")) {
+        ringColor = QColor(255, 200, 0);
+        fillColor = QColor(150, 100, 0, 160);
+    } else if (m_keyName == QStringLiteral("LeftButton")) {
         ringColor = QColor(255, 160, 0);
         fillColor = QColor(160, 80, 0, 160);
         display   = QStringLiteral("FIRE\n(LClick)");
@@ -204,7 +237,9 @@ void ClickNodeWidget::paintEvent(QPaintEvent *event)
         if (display.startsWith(QStringLiteral("Key_")))
             display = display.mid(4);
     }
-
+    if (m_originalJson.value(QStringLiteral("type")).toString() == QStringLiteral("KMT_CLICK_TWICE")) {
+        display = QStringLiteral("DOUBLE\n") + display;
+    }
     p.setPen(QPen(ringColor, 2));
     p.setBrush(fillColor);
     p.drawEllipse(rect().adjusted(2, 2, -2, -2));
@@ -236,38 +271,26 @@ SteerWheelNodeWidget::SteerWheelNodeWidget(QWidget *parent)
 
 QJsonObject SteerWheelNodeWidget::toJson() const
 {
-    QJsonObject obj;
+    QJsonObject obj = m_originalJson;
     obj[QStringLiteral("type")] = QStringLiteral("KMT_STEER_WHEEL");
 
-    QJsonObject posObj;
-    if (parentWidget()) {
-        posObj[QStringLiteral("x")] = static_cast<double>(pos().x() + width()  / 2) / parentWidget()->width();
-        posObj[QStringLiteral("y")] = static_cast<double>(pos().y() + height() / 2) / parentWidget()->height();
-    } else {
-        posObj[QStringLiteral("x")] = 0.5;
-        posObj[QStringLiteral("y")] = 0.5;
-    }
-    obj[QStringLiteral("centerPos")]   = posObj;
+    obj[QStringLiteral("centerPos")]   = normalizedCenter(this);
     obj[QStringLiteral("leftKey")]     = m_leftKey;
     obj[QStringLiteral("rightKey")]    = m_rightKey;
     obj[QStringLiteral("upKey")]       = m_upKey;
     obj[QStringLiteral("downKey")]     = m_downKey;
-    obj[QStringLiteral("leftOffset")]  = 0.05;
-    obj[QStringLiteral("rightOffset")] = 0.05;
-    obj[QStringLiteral("upOffset")]    = 0.05;
-    obj[QStringLiteral("downOffset")]  = 0.05;
+    if (!obj.contains(QStringLiteral("leftOffset")))  obj[QStringLiteral("leftOffset")] = 0.05;
+    if (!obj.contains(QStringLiteral("rightOffset"))) obj[QStringLiteral("rightOffset")] = 0.05;
+    if (!obj.contains(QStringLiteral("upOffset")))    obj[QStringLiteral("upOffset")] = 0.05;
+    if (!obj.contains(QStringLiteral("downOffset")))  obj[QStringLiteral("downOffset")] = 0.05;
     return obj;
 }
 
 void SteerWheelNodeWidget::fromJson(const QJsonObject &json)
 {
-    if (parentWidget() && json.contains(QStringLiteral("centerPos"))) {
-        QJsonObject posObj = json[QStringLiteral("centerPos")].toObject();
-        double xR = posObj[QStringLiteral("x")].toDouble();
-        double yR = posObj[QStringLiteral("y")].toDouble();
-        int cx = static_cast<int>(xR * parentWidget()->width());
-        int cy = static_cast<int>(yR * parentWidget()->height());
-        move(cx - width() / 2, cy - height() / 2);
+    m_originalJson = json;
+    if (json.value(QStringLiteral("centerPos")).isObject()) {
+        moveToNormalizedCenter(this, json.value(QStringLiteral("centerPos")).toObject());
     }
     if (json.contains(QStringLiteral("upKey")))    m_upKey    = json[QStringLiteral("upKey")].toString();
     if (json.contains(QStringLiteral("downKey")))  m_downKey  = json[QStringLiteral("downKey")].toString();
@@ -391,29 +414,25 @@ void MouseMoveNodeWidget::setSwitchKey(const QString &key)
 
 QJsonObject MouseMoveNodeWidget::toJson() const
 {
-    QJsonObject obj;
+    QJsonObject obj = m_originalJson;
 
-    QJsonObject posObj;
-    if (parentWidget()) {
-        posObj[QStringLiteral("x")] = static_cast<double>(pos().x() + width()  / 2) / parentWidget()->width();
-        posObj[QStringLiteral("y")] = static_cast<double>(pos().y() + height() / 2) / parentWidget()->height();
-    } else {
-        posObj[QStringLiteral("x")] = 0.5;
-        posObj[QStringLiteral("y")] = 0.5;
-    }
-    obj[QStringLiteral("startPos")]    = posObj;
+    obj[QStringLiteral("startPos")]    = normalizedCenter(this);
     obj[QStringLiteral("speedRatioX")] = m_speedRatioX;
     obj[QStringLiteral("speedRatioY")] = m_speedRatioY;
 
     // Small eyes = the toggle key  (On/Off)
-    QJsonObject smallEyes;
+    QJsonObject smallEyes = obj.value(QStringLiteral("smallEyes")).toObject();
     smallEyes[QStringLiteral("type")]      = QStringLiteral("KMT_CLICK");
     smallEyes[QStringLiteral("key")]       = m_switchKey;
-    QJsonObject eyePos;
-    eyePos[QStringLiteral("x")] = 0.5;
-    eyePos[QStringLiteral("y")] = 0.5;
-    smallEyes[QStringLiteral("pos")]       = eyePos;
-    smallEyes[QStringLiteral("switchMap")] = true;
+    if (!smallEyes.contains(QStringLiteral("pos"))) {
+        QJsonObject eyePos;
+        eyePos[QStringLiteral("x")] = 0.5;
+        eyePos[QStringLiteral("y")] = 0.5;
+        smallEyes[QStringLiteral("pos")] = eyePos;
+    }
+    if (!smallEyes.contains(QStringLiteral("switchMap"))) {
+        smallEyes[QStringLiteral("switchMap")] = true;
+    }
     obj[QStringLiteral("smallEyes")]       = smallEyes;
 
     return obj;
@@ -421,14 +440,9 @@ QJsonObject MouseMoveNodeWidget::toJson() const
 
 void MouseMoveNodeWidget::fromJson(const QJsonObject &json)
 {
-    if (json.contains(QStringLiteral("startPos"))) {
-        QJsonObject posObj = json[QStringLiteral("startPos")].toObject();
-        double x = posObj[QStringLiteral("x")].toDouble(0.5);
-        double y = posObj[QStringLiteral("y")].toDouble(0.5);
-        if (parentWidget()) {
-            move(x * parentWidget()->width()  - width()  / 2,
-                 y * parentWidget()->height() - height() / 2);
-        }
+    m_originalJson = json;
+    if (json.value(QStringLiteral("startPos")).isObject()) {
+        moveToNormalizedCenter(this, json.value(QStringLiteral("startPos")).toObject());
     }
     if (json.contains(QStringLiteral("speedRatioX")))
         m_speedRatioX = json[QStringLiteral("speedRatioX")].toDouble(3.0);
@@ -453,7 +467,7 @@ void MouseMoveNodeWidget::mouseDoubleClickEvent(QMouseEvent *event)
     // Dialog to reassign toggle key
     QDialog dlg(this);
     dlg.setWindowTitle(tr("Camera Look Settings"));
-    dlg.setFixedSize(340, 200);
+    dlg.setFixedSize(360, 250);
 
     auto *vlay = new QVBoxLayout(&dlg);
     vlay->addWidget(new QLabel(tr("Toggle Key (shows/hides mouse cursor):"), &dlg));
@@ -464,9 +478,25 @@ void MouseMoveNodeWidget::mouseDoubleClickEvent(QMouseEvent *event)
 
     vlay->addWidget(new QLabel(tr("Click button to capture new toggle key."), &dlg));
 
-    // Speed ratio slider row
-    auto *speedRow = new QHBoxLayout();
-    speedRow->addWidget(new QLabel(tr("Speed:"), &dlg));
+    auto *speedXRow = new QHBoxLayout();
+    speedXRow->addWidget(new QLabel(tr("Horizontal speed:"), &dlg));
+    auto *speedX = new QDoubleSpinBox(&dlg);
+    speedX->setRange(0.1, 20.0);
+    speedX->setSingleStep(0.1);
+    speedX->setDecimals(1);
+    speedX->setValue(m_speedRatioX);
+    speedXRow->addWidget(speedX);
+    vlay->addLayout(speedXRow);
+
+    auto *speedYRow = new QHBoxLayout();
+    speedYRow->addWidget(new QLabel(tr("Vertical speed:"), &dlg));
+    auto *speedY = new QDoubleSpinBox(&dlg);
+    speedY->setRange(0.1, 20.0);
+    speedY->setSingleStep(0.1);
+    speedY->setDecimals(1);
+    speedY->setValue(m_speedRatioY);
+    speedYRow->addWidget(speedY);
+    vlay->addLayout(speedYRow);
 
     connect(switchBtn, &QPushButton::clicked, [this, switchBtn, &dlg]() {
         KeyCaptureDlg kd(&dlg);
@@ -477,8 +507,11 @@ void MouseMoveNodeWidget::mouseDoubleClickEvent(QMouseEvent *event)
     });
 
     auto *ok = new QPushButton(tr("Done"), &dlg);
-    connect(ok, &QPushButton::clicked, &dlg, &QDialog::accept);
-    vlay->addLayout(speedRow);
+    connect(ok, &QPushButton::clicked, &dlg, [&dlg, speedX, speedY, this]() {
+        m_speedRatioX = speedX->value();
+        m_speedRatioY = speedY->value();
+        dlg.accept();
+    });
     vlay->addWidget(ok);
 
     dlg.exec();

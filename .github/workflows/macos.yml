@@ -1,15 +1,21 @@
-﻿name: MacOS
+name: MacOS
 on:
   push:
     paths:
       - 'QtScrcpy/**'
-      - '!QtScrcpy/res/**'
+      - 'CMakeLists.txt'
+      - '.gitmodules'
       - '.github/workflows/macos.yml'
+      - 'ci/generate-version.py'
+      - 'ci/mac/**'
   pull_request:
     paths:
       - 'QtScrcpy/**'
-      - '!QtScrcpy/res/**'
+      - 'CMakeLists.txt'
+      - '.gitmodules'
       - '.github/workflows/macos.yml'
+      - 'ci/generate-version.py'
+      - 'ci/mac/**'
 
 jobs:
   build:
@@ -45,7 +51,6 @@ jobs:
         uses: jurplel/install-qt-action@v4.1.1
         with:
           version: ${{ matrix.qt-ver }}
-          cached: ${{ steps.cache-qt.outputs.cache-hit }}
 
       - name: Install Qt6
         if: startsWith(matrix.qt-ver, '6.')
@@ -53,7 +58,6 @@ jobs:
         with:
           version: ${{ matrix.qt-ver }}
           modules: qtmultimedia
-          cached: ${{ steps.cache-qt.outputs.cache-hit }}
 
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -259,7 +259,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
         VERSION_MINOR=${PROJECT_VERSION_MINOR}
         VERSION_PATCH=${PROJECT_VERSION_PATCH}
-        VERSION_RC_STR="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
+        VERSION_RC_STR="${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
     )
     set(QC_PLANTFORM_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/res/${PROJECT_NAME}.rc"
@@ -319,7 +319,7 @@ message(STATUS "multi config:" QC_IS_MUTIL_CONFIG)
 
 # $<0:> 使用生成器表达式为每个config设置RUNTIME_OUTPUT_DIRECTORY，这样multi config就不会自动追加CMAKE_BUILD_TYPE子目录了
 # 1. multi config介绍 https://cmake.org/cmake/help/latest/prop_gbl/GENERATOR_IS_MULTI_CONFIG.html
-# 2. multi config在不用表达式生成器时自动追加子目录说明 https://cmake.org/cmake/help/latest/prop_tgt/RUNTIME_OUTPUT_DIRECTORY.html
+# 2. cmake在不用表达式生成器时自动追加子目录说明 https://cmake.org/cmake/help/latest/prop_tARGET_RUNTIME_OUTPUT_DIRECTORY.html
 # 3. 使用表达式生成器禁止multi config自动追加子目录解决方案 https://stackoverflow.com/questions/7747857/in-cmake-how-do-i-work-around-the-debug-and-release-directories-visual-studio-2
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../output/${QC_CPU_ARCH}/${CMAKE_BUILD_TYPE}/$<0:>"
