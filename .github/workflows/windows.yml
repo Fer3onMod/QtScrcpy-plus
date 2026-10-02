@@ -1,9 +1,10 @@
-name: Windows
+﻿name: Windows
 
 on:
   push:
     paths:
       - 'QtScrcpy/**'
+      - 'keymap/**'
       - 'CMakeLists.txt'
       - '.gitmodules'
       - '.github/workflows/windows.yml'
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - 'QtScrcpy/**'
+      - 'keymap/**'
       - 'CMakeLists.txt'
       - '.gitmodules'
       - '.github/workflows/windows.yml'
@@ -49,13 +51,6 @@ jobs:
           fetch-depth: 0
           submodules: 'true'
 
-      - name: Cache Qt
-        id: cache-qt
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.qt-install-path }}
-          key: ${{ runner.os }}-Qt-${{ matrix.qt-ver }}-${{ matrix.qt-arch }}
-
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.1.1
         with:
@@ -63,6 +58,7 @@ jobs:
           target: desktop
           arch: ${{ matrix.qt-arch }}
           dir: ${{ env.qt-install-path }}
+          cache: true
 
       - name: Build MSVC
         shell: cmd

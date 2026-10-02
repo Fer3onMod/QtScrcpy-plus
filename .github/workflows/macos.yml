@@ -1,8 +1,9 @@
-name: MacOS
+﻿name: MacOS
 on:
   push:
     paths:
       - 'QtScrcpy/**'
+      - 'keymap/**'
       - 'CMakeLists.txt'
       - '.gitmodules'
       - '.github/workflows/macos.yml'
@@ -11,6 +12,7 @@ on:
   pull_request:
     paths:
       - 'QtScrcpy/**'
+      - 'keymap/**'
       - 'CMakeLists.txt'
       - '.gitmodules'
       - '.github/workflows/macos.yml'
@@ -35,29 +37,28 @@ jobs:
             runs-on: macos-14
     env:
       target-name: QtScrcpy
-      qt-install-path: ${{ github.workspace }}/${{ matrix.qt-ver }}
+      qt-install-path: ${{ github.workspace }}/Qt/${{ matrix.qt-ver }}
       platform-des: mac
 
     steps:
-      - name: Cache Qt
-        id: cache-qt
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.qt-install-path }}/${{ matrix.qt-arch-install }}
-          key: ${{ runner.os }}/${{ matrix.qt-ver }}/${{ matrix.qt-arch-install }}
-
       - name: Install Qt5
         if: startsWith(matrix.qt-ver, '5.')
         uses: jurplel/install-qt-action@v4.1.1
         with:
           version: ${{ matrix.qt-ver }}
+          arch: ${{ matrix.qt-arch-install }}
+          dir: ${{ github.workspace }}/Qt
+          cache: true
 
       - name: Install Qt6
         if: startsWith(matrix.qt-ver, '6.')
         uses: jurplel/install-qt-action@v4.1.1
         with:
           version: ${{ matrix.qt-ver }}
+          arch: ${{ matrix.qt-arch-install }}
+          dir: ${{ github.workspace }}/Qt
           modules: qtmultimedia
+          cache: true
 
       - name: Checkout repository
         uses: actions/checkout@v4

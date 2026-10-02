@@ -136,8 +136,20 @@ void VideoForm::initUI()
     }
     ui->keepRatioWidget->setMouseTracking(true);
 
-    m_keymapOverlay = new KeymapOverlay(ui->keepRatioWidget);
-    m_keymapOverlay->resize(ui->keepRatioWidget->size());
+    QWidget *keymapSurface = videoWidget();
+    m_keymapOverlay = new KeymapOverlay(keymapSurface ? keymapSurface : ui->keepRatioWidget);
+    m_keymapOverlay->resize(m_keymapOverlay->parentWidget()->size());
+    connect(m_keymapOverlay, &KeymapOverlay::saveRequested,
+            this, &VideoForm::toggleKeymapEditor);
+    connect(m_keymapOverlay, &KeymapOverlay::closeRequested, this, [this]() {
+        if (!m_keymapOverlay || !m_keymapOverlay->isEditMode()) {
+            return;
+        }
+        m_keymapOverlay->setEditMode(false);
+        for (QShortcut *shortcut : m_shortcuts) {
+            shortcut->setEnabled(true);
+        }
+    });
     {
         QString keymapDir = Config::getInstance().getKeyMapPath();
         QDir().mkpath(keymapDir);
@@ -847,7 +859,8 @@ void VideoForm::resizeEvent(QResizeEvent *event)
 
     // Resize keymap overlay to always match video area
     if (m_keymapOverlay) {
-        m_keymapOverlay->resize(ui->keepRatioWidget->size());
+        QWidget *surface = videoWidget();
+        m_keymapOverlay->setGeometry(surface ? surface->rect() : ui->keepRatioWidget->rect());
     }
 
     if (m_flexDisplay) {
@@ -939,35 +952,42 @@ void VideoForm::toggleKeymapEditor()
         return;
 
     bool editMode = !m_keymapOverlay->isEditMode();
-    m_keymapOverlay->setEditMode(editMode);
-
-    if (!editMode) {
-        // Leaving game/edit mode — save keymap and push to device
-        QString keymapDir = Config::getInstance().getKeyMapPath();
-        QDir().mkpath(keymapDir);
-        QString keymapPath = keymapDir + "/custom.json";
-        m_keymapOverlay->saveKeymap(keymapPath);
-
-        auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
-        if (device) {
-            QFile file(keymapPath);
-            if (file.open(QIODevice::ReadOnly)) {
-                QString script = QString::fromUtf8(file.readAll());
-                device->updateScript(script);
-                file.close();
-            }
-        }
-
-        // Re-enable all app shortcuts
-        for (QShortcut *sc : m_shortcuts)
-            sc->setEnabled(true);
-
-    } else {
-        // Entering game mode — disable app shortcuts so WASD reaches engine
+    if (editMode) {
+        m_keymapOverlay->setEditMode(true);
         for (QShortcut *sc : m_shortcuts)
             sc->setEnabled(false);
+        return;
     }
+
+    const QString keymapDir = Config::getInstance().getKeyMapPath();
+    if (!QDir().mkpath(keymapDir)) {
+        qWarning() << "Could not create keymap directory:" << keymapDir;
+        QMessageBox::warning(this, tr("Keymap"), tr("Could not create the keymap directory."));
+        return;
+    }
+
+    const QString keymapPath = keymapDir + "/custom.json";
+    if (!m_keymapOverlay->saveKeymap(keymapPath)) {
+        QMessageBox::warning(this, tr("Keymap"),
+                             tr("Could not save the keymap. Your changes are still open."));
+        return;
+    }
+
+    auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (device) {
+        QFile file(keymapPath);
+        if (!file.open(QIODevice::ReadOnly)) {
+            qWarning() << "Could not read saved keymap for device:" << keymapPath << file.errorString();
+            QMessageBox::warning(this, tr("Keymap"),
+                                 tr("The keymap was saved, but could not be applied to the device."));
+            return;
+        }
+        const QString script = QString::fromUtf8(file.readAll());
+        file.close();
+        device->updateScript(script);
+    }
+
+    m_keymapOverlay->setEditMode(false);
+    for (QShortcut *sc : m_shortcuts)
+        sc->setEnabled(true);
 }
-
-
-

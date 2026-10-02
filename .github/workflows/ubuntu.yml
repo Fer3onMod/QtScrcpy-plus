@@ -1,8 +1,9 @@
-name: Ubuntu
+﻿name: Ubuntu
 on:
   push:
     paths:
       - 'QtScrcpy/**'
+      - 'keymap/**'
       - 'CMakeLists.txt'
       - '.gitmodules'
       - '.github/workflows/ubuntu.yml'
@@ -11,6 +12,7 @@ on:
   pull_request:
     paths:
       - 'QtScrcpy/**'
+      - 'keymap/**'
       - 'CMakeLists.txt'
       - '.gitmodules'
       - '.github/workflows/ubuntu.yml'
@@ -95,17 +97,13 @@ jobs:
             apt-get install -y cmake
           }
 
-      - name: Cache Qt
-        id: cache-qt
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.qt-install-path }}/${{ matrix.qt-arch-install }}
-          key: ubuntu-20.04/${{ matrix.qt-ver }}/${{ matrix.qt-arch-install }}
-
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.1.1
         with:
           version: ${{ matrix.qt-ver }}
+          arch: ${{ matrix.qt-arch-install }}
+          dir: ${{ github.workspace }}/Qt
+          cache: true
           setup-python: false
 
       - name: Build Release
